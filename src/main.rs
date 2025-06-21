@@ -7,13 +7,13 @@ fn main() -> io::Result<()> {
 
     println!("(incogt) Starting incognito shell session with shell: {}", shell);
 
-    // Command to set PS1 and start interactive shell with normal configs
+    // Command to set PS1 and start interactive shell without loading user configs
     let shell_cmd = r#"
 export HISTFILE=/dev/null
 export HISTSIZE=1000
 export HISTFILESIZE=0
-PS1="(incogt) [\\u@\\h \\W]\\$ "
-exec bash -i
+export PS1="(incogt) [\u@\h \W]\$ "
+exec bash --norc --noprofile -i
 "#;
 
     let mut child = Command::new(shell)
