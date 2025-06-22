@@ -3,13 +3,17 @@ use std::io::{self, Error, ErrorKind};
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-// Import the shell module
+// Import modules
 mod shell;
+mod memory;
 
 /// Launches an "incognito" interactive shell session with disabled history and no user configuration files loaded.
 /// Uses the `SHELL` environment variable or defaults to `/bin/bash`.
 fn main() -> io::Result<()> {
-    // Retrieve the user's preferred shell
+    // Step 1: Initialize memory protection FIRST (before any sensitive operations)
+    let _memory_protection = memory::MemoryProtection::initialize()?;
+
+    // Step 2: Retrieve the user's preferred shell
     let shell = env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
 
     // Validate shell exists
