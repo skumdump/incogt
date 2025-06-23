@@ -21,7 +21,7 @@
 ### Building from Source
 
    ```bash
-   git clone https://github.com/<your-username>/incogt.git
+   git clone https://github.com/skumdump/incogt.git
    cd incogt
    
    rustc --version
