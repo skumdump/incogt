@@ -19,7 +19,18 @@
 - **Supported Shells**: One of `bash`, `zsh`, `fish`, `sh`, or `dash` must be installed.
 
 ### Building from Source
-1. Clone the repository:
+
    ```bash
    git clone https://github.com/<your-username>/incogt.git
    cd incogt
+   
+   rustc --version
+   cargo --version
+   
+   If Rust is not installed, install it via rustup. Update Rust if needed:
+   
+   rustup update
+   cargo build
+
+   Test the Build: Verify the build by running the binary directly:
+   ./target/release/incogt
