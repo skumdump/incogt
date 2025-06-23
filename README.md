@@ -4,7 +4,7 @@
 
 ## Features
 
-- **No Shell History**: Disables history logging for supported shells (`bash`, `zsh`, `fish`, `sh`, `dash`) to prevent command persistence.
+- **Ephemeral Shell History**: Maintains in-session command history for supported shells (`bash`, `zsh`, `fish`, `sh`, `dash`) without persisting it to disk, preventing leakage after the session ends.
 - **Memory Protection**: Locks process memory (Unix only) to prevent sensitive data from being swapped to disk.
 - **Core Dump Prevention**: Disables core dumps (Unix only) to avoid crash memory dumps containing sensitive information.
 - **TTY Security Checks**: Verifies the terminal environment to detect potential logging mechanisms (e.g., `script`, `tmux`).
