@@ -27,7 +27,7 @@
    rustc --version
    cargo --version
    
-   If Rust is not installed, install it via rustup. Update Rust if needed:
+   #If Rust is not installed, install it via rustup. Update Rust if needed:
    
    rustup update
    cargo build
