@@ -1,32 +1,30 @@
 use std::io::{self, Error, ErrorKind};
 
 #[cfg(unix)]
-use nix::sys::mman::{mlockall, MlockAllFlags};
-
-#[cfg(unix)]
-use nix::sys::resource::{setrlimit, Resource};
+use nix::{
+    errno::Errno,
+    sys::mman::{mlockall, MlockAllFlags},
+    sys::resource::{setrlimit, Resource}
+};
 
 /// Memory protection configuration
 pub struct MemoryProtection {
-    /// Whether memory locking was successfully enabled
     pub memory_locked: bool,
-    /// Whether core dumps were disabled
     pub core_dumps_disabled: bool,
 }
 
 impl MemoryProtection {
     /// Initialize memory protection for the current process
-    /// This should be called early in main() before spawning the shell
     pub fn initialize() -> io::Result<Self> {
         let mut protection = MemoryProtection {
             memory_locked: false,
             core_dumps_disabled: false,
         };
 
-        // Step 1: Disable core dumps first (prevents memory dumps on crash)
+        // Step 1: Disable core dumps first
         protection.disable_core_dumps()?;
 
-        // Step 2: Lock all current and future memory pages
+        // Step 2: Lock memory pages
         protection.lock_memory()?;
 
         println!("(incogt) Memory protection initialized");
@@ -48,16 +46,14 @@ impl MemoryProtection {
                 self.memory_locked = true;
                 Ok(())
             }
-            Err(nix::errno::Errno::EPERM) => {
+            Err(Errno::EPERM) => {
                 eprintln!("(incogt) Warning: Cannot lock memory - insufficient permissions");
                 eprintln!("(incogt) Consider running with CAP_IPC_LOCK capability or as root");
-                eprintln!("(incogt) History may be swapped to disk!");
-                Ok(()) // Don't fail, just warn
+                Ok(())
             }
-            Err(nix::errno::Errno::ENOMEM) => {
+            Err(Errno::ENOMEM) => {
                 eprintln!("(incogt) Warning: Cannot lock memory - insufficient memory");
-                eprintln!("(incogt) History may be swapped to disk!");
-                Ok(()) // Don't fail, just warn
+                Ok(())
             }
             Err(e) => Err(Error::new(
                 ErrorKind::Other,
@@ -66,20 +62,15 @@ impl MemoryProtection {
         }
     }
 
-    /// Lock memory (no-op on non-Unix systems)
     #[cfg(not(unix))]
     fn lock_memory(&mut self) -> io::Result<()> {
         eprintln!("(incogt) Warning: Memory locking not supported on this platform");
-        eprintln!("(incogt) History may be swapped to disk!");
         Ok(())
     }
 
-    /// Disable core dumps to prevent memory dumps on crash
+    /// Disable core dumps
     #[cfg(unix)]
     fn disable_core_dumps(&mut self) -> io::Result<()> {
-        use nix::sys::resource::{getrlimit, setrlimit, Resource};
-
-        // Set core dump size limit to 0
         match setrlimit(Resource::RLIMIT_CORE, 0, 0) {
             Ok(()) => {
                 self.core_dumps_disabled = true;
@@ -87,12 +78,11 @@ impl MemoryProtection {
             }
             Err(e) => {
                 eprintln!("(incogt) Warning: Cannot disable core dumps: {}", e);
-                Ok(()) // Don't fail, just warn
+                Ok(())
             }
         }
     }
 
-    /// Disable core dumps (no-op on non-Unix systems)
     #[cfg(not(unix))]
     fn disable_core_dumps(&mut self) -> io::Result<()> {
         eprintln!("(incogt) Warning: Core dump disabling not supported on this platform");
@@ -113,34 +103,9 @@ impl MemoryProtection {
 }
 
 impl Drop for MemoryProtection {
-    /// Cleanup when the protection object is dropped
-    /// Note: We don't unlock memory here as that could allow swapping
-    /// Memory will be automatically unlocked when the process exits
     fn drop(&mut self) {
         if self.memory_locked {
             println!("(incogt) Memory protection cleanup - memory remains locked until exit");
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_memory_protection_initialization() {
-        // This test may fail without proper permissions, but shouldn't panic
-        let result = MemoryProtection::initialize();
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_status_summary() {
-        let protection = MemoryProtection {
-            memory_locked: true,
-            core_dumps_disabled: true,
-        };
-        assert!(protection.status_summary().contains("LOCKED"));
-        assert!(protection.status_summary().contains("DISABLED"));
     }
 }

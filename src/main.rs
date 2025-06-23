@@ -3,35 +3,50 @@ use std::io::{self, Error, ErrorKind};
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-// Import modules
-mod shell;
 mod memory;
+mod shell;
+mod tty;
 
-/// Launches an "incognito" interactive shell session with disabled history and no user configuration files loaded.
-/// Uses the `SHELL` environment variable or defaults to `/bin/bash`.
 fn main() -> io::Result<()> {
-    // Step 1: Initialize memory protection FIRST (before any sensitive operations)
+    // 1. Initialize memory protection FIRST
     let _memory_protection = memory::MemoryProtection::initialize()?;
 
-    // Step 2: Retrieve the user's preferred shell
-    let shell = env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
+    // 2. Check TTY security
+    let tty_sec = tty::TtySecurity::check()?;
+    tty_sec.harden()?;
 
-    // Validate shell exists
-    if !Path::new(&shell).exists() {
-        eprintln!("Error: Shell '{}' not found", shell);
-        std::process::exit(1);
+    if !tty_sec.is_secure {
+        eprintln!("(incogt) WARNING: Terminal environment may be logged");
+        if !confirm_continue("Continue despite insecure terminal?")? {
+            return Ok(());
+        }
     }
 
-    // Extract the shell name (e.g., "bash" from "/bin/bash")
+    // 3. Shell detection and validation
+    let shell = env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
+
+    if !Path::new(&shell).exists() {
+        return Err(Error::new(
+            ErrorKind::NotFound,
+            format!("Shell '{}' not found", shell)
+        ));
+    }
+
     let shell_name = Path::new(&shell)
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or("bash");
 
-    println!("(incogt) Starting incognito shell session with: {}", shell);
+    // 4. Start secured shell session
+    start_incognito_session(shell_name, &shell)?;
+
+    Ok(())
+}
+
+fn start_incognito_session(shell_name: &str, shell_path: &str) -> io::Result<()> {
+    println!("(incogt) Starting incognito session with: {}", shell_path);
     println!("(incogt) Use 'exit' or Ctrl+D to end the session");
 
-    // Get the shell-specific command
     let shell_cmd = match shell::get_shell_cmd(shell_name) {
         Ok(cmd) => cmd,
         Err(e) => {
@@ -41,21 +56,46 @@ fn main() -> io::Result<()> {
         }
     };
 
-    // Spawn the shell process
-    let mut shell_process = Command::new(&shell)
+    // Safe because we control all inputs and validate them
+    Command::new(shell_path)
         .arg("-c")
         .arg(&shell_cmd)
         .stdin(Stdio::inherit())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
-        .spawn()
-        .map_err(|e| Error::new(ErrorKind::Other, format!("Failed to spawn shell {}: {}", shell, e)))?;
+        .spawn()?
+        .wait()?;
 
-    // Wait for the shell to exit
-    let status = shell_process.wait().map_err(|e| {
-        Error::new(ErrorKind::Other, format!("Error waiting for shell process: {}", e))
-    })?;
+    Ok(())
+}
 
-    println!("(incogt) Incognito session ended.");
-    std::process::exit(status.code().unwrap_or(0));
+fn confirm_continue(prompt: &str) -> io::Result<bool> {
+    use std::io::{stdin, stdout, Write};
+
+    print!("(incogt) {} [y/N]: ", prompt);
+    stdout().flush()?;
+
+    let mut input = String::new();
+    stdin().read_line(&mut input)?;
+
+    Ok(input.trim().eq_ignore_ascii_case("y"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env;
+
+    #[test]
+    fn test_shell_detection() {
+        env::set_var("SHELL", "/bin/bash");
+        let shell = env::var("SHELL").unwrap();
+        assert!(Path::new(&shell).exists());
+    }
+
+    #[test]
+    fn test_confirm_continue() {
+        let result = confirm_continue("test");
+        assert!(result.is_ok());
+    }
 }
