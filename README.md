@@ -32,5 +32,5 @@
    rustup update
    cargo build
 
-   Test the Build: Verify the build by running the binary directly:
+   #Test the Build: Verify the build by running the binary directly:
    ./target/release/incogt
